@@ -86,8 +86,28 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	
 	//MARK: Unimplemented methods
 	public BufferedImage greyscale() {
-		//TODO: Implement this method, remove the exception.
-		throw new UnimplementedMethodException("greyscale");
+		logger.log("Prepareing for grayscale changing...");
+		
+		int r = rgbWeights.redWeight;
+		int g = rgbWeights.greenWeight;
+		int b = rgbWeights.blueWeight;
+		int weightsSum = rgbWeights.weightsSum;
+		
+		BufferedImage ans = newEmptyInputSizedImage();
+		
+		forEach((y, x) -> {
+			Color c = new Color(workingImage.getRGB(x, y));
+			int red = r*c.getRed();
+			int green = g*c.getGreen();
+			int blue = b*c.getBlue();
+			int grayScaled = (red + green + blue) / weightsSum;
+			Color color = new Color(grayScaled, grayScaled, grayScaled);
+			ans.setRGB(x, y, color.getRGB());
+		});
+		
+		logger.log("Changing grayscale done!");
+		
+		return ans;
 	}
 
 	public BufferedImage gradientMagnitude() {
