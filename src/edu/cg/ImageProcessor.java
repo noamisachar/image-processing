@@ -2,6 +2,7 @@ package edu.cg;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.rmi.UnexpectedException;
 
 public class ImageProcessor extends FunctioalForEachLoops {
 	
@@ -40,7 +41,7 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	
 	//MARK: Change picture hue - example
 	public BufferedImage changeHue() {
-		logger.log("Prepareing for hue changing...");
+		logger.log("Preparing for hue changing...");
 		
 		int r = rgbWeights.redWeight;
 		int g = rgbWeights.greenWeight;
@@ -86,7 +87,7 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	
 	//MARK: Unimplemented methods
 	public BufferedImage greyscale() {
-		logger.log("Prepareing for grayscale changing...");
+		logger.log("Preparing greyscale...");
 		
 		int r = rgbWeights.redWeight;
 		int g = rgbWeights.greenWeight;
@@ -100,19 +101,63 @@ public class ImageProcessor extends FunctioalForEachLoops {
 			int red = r*c.getRed();
 			int green = g*c.getGreen();
 			int blue = b*c.getBlue();
-			int grayScaled = (red + green + blue) / weightsSum;
-			Color color = new Color(grayScaled, grayScaled, grayScaled);
+			int greyScaled = (red + green + blue) / weightsSum;
+			Color color = new Color(greyScaled, greyScaled, greyScaled);
 			ans.setRGB(x, y, color.getRGB());
 		});
 		
-		logger.log("Changing grayscale done!");
+		logger.log("Greyscale done!");
 		
 		return ans;
 	}
 
 	public BufferedImage gradientMagnitude() {
-		//TODO: Implement this method, remove the exception.
-		throw new UnimplementedMethodException("gradientMagnitude");
+		logger.log("Preparing gradient magnitude...");
+		
+		BufferedImage greyscaled = greyscale();
+		int width = greyscaled.getWidth();
+		int height = greyscaled.getHeight();
+		if (height < 2 || width < 2)
+		{
+			try {
+				throw new UnexpectedException("Image is too small");
+			} catch (UnexpectedException e) {
+				e.printStackTrace();
+			}
+		}
+
+		BufferedImage ans = newEmptyInputSizedImage();
+
+		forEach((y, x) -> {
+			Color cCurr = new Color(workingImage.getRGB(x, y));
+			Color cPrevH;
+			Color cPrevW;
+			if (y == height-1)
+			{
+				cPrevH = new Color(workingImage.getRGB(x, y-1));
+			}
+			else
+			{
+				cPrevH = new Color(workingImage.getRGB(x, y+1));
+			}
+			if (x == width-1)
+			{
+				cPrevW = new Color(workingImage.getRGB(x-1, y));
+			}
+			else
+			{
+				cPrevW = new Color(workingImage.getRGB(x+1, y));
+			}
+			double dx = Math.abs(cCurr.getRed() - cPrevW.getRed());
+			double dy = Math.abs(cCurr.getRed() - cPrevH.getRed());
+			int magnitude = (int) Math.sqrt((dx * dx + dy * dy) / 2);
+			Color color = new Color(magnitude, magnitude, magnitude);
+			ans.setRGB(x, y, color.getRGB());
+		});
+		
+		logger.log("Gradient magnitude ready!");
+		
+		return ans;
 	}
 
 	public BufferedImage bilinear() {
