@@ -101,7 +101,7 @@ public class ImageProcessor extends FunctioalForEachLoops {
 			int green = g*c.getGreen();
 			int blue = b*c.getBlue();
 			int grayScaled = (red + green + blue) / weightsSum;
-			Color color = new Color(red, green, blue);
+			Color color = new Color(grayScaled, grayScaled, grayScaled);
 			ans.setRGB(x, y, color.getRGB());
 		});
 		
