@@ -66,7 +66,7 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	
 	//MARK: Nearest neighbor - example
 	public BufferedImage nearestNeighbor() {
-		logger.log("applies nearest neighbor interpolation.");
+		logger.log("Applying nearest neighbor interpolation...");
 		BufferedImage ans = newEmptyOutputSizedImage();
 		
 		pushForEachParameters();
@@ -115,8 +115,8 @@ public class ImageProcessor extends FunctioalForEachLoops {
 		logger.log("Preparing gradient magnitude...");
 		
 		BufferedImage greyscaled = greyscale();
-		int width = greyscaled.getWidth();
-		int height = greyscaled.getHeight();
+		int width = inWidth;
+		int height = inHeight;
 		if (height < 2 || width < 2)
 		{
 			try {
@@ -129,24 +129,24 @@ public class ImageProcessor extends FunctioalForEachLoops {
 		BufferedImage ans = newEmptyInputSizedImage();
 
 		forEach((y, x) -> {
-			Color cCurr = new Color(workingImage.getRGB(x, y));
+			Color cCurr = new Color(greyscaled.getRGB(x, y));
 			Color cPrevH;
 			Color cPrevW;
 			if (y == height-1)
 			{
-				cPrevH = new Color(workingImage.getRGB(x, y-1));
+				cPrevH = new Color(greyscaled.getRGB(x, y-1));
 			}
 			else
 			{
-				cPrevH = new Color(workingImage.getRGB(x, y+1));
+				cPrevH = new Color(greyscaled.getRGB(x, y+1));
 			}
 			if (x == width-1)
 			{
-				cPrevW = new Color(workingImage.getRGB(x-1, y));
+				cPrevW = new Color(greyscaled.getRGB(x-1, y));
 			}
 			else
 			{
-				cPrevW = new Color(workingImage.getRGB(x+1, y));
+				cPrevW = new Color(greyscaled.getRGB(x+1, y));
 			}
 			double dx = Math.abs(cCurr.getRed() - cPrevW.getRed());
 			double dy = Math.abs(cCurr.getRed() - cPrevH.getRed());
@@ -161,8 +161,24 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	}
 
 	public BufferedImage bilinear() {
-		//TODO: Implement this method, remove the exception.
-		throw new UnimplementedMethodException("bilinear");
+		logger.log("Applying bilinear interpolation...");
+		BufferedImage ans = newEmptyOutputSizedImage();
+		
+		// pushForEachParameters();
+		// setForEachOutputParameters();
+		
+		// forEach((y, x) -> {
+		// 	int imgX = (int)Math.round((x*inWidth) / ((float)outWidth));
+		// 	int imgY = (int)Math.round((y*inHeight) / ((float)outHeight));
+		// 	imgX = Math.min(imgX,  inWidth-1);
+		// 	imgY = Math.min(imgY, inHeight-1);
+		// 	ans.setRGB(x, y, workingImage.getRGB(imgX, imgY));
+		// });
+		
+		// popForEachParameters();
+
+		logger.log("Bilinear interpolation done!");
+		return ans;
 	}
 	
 	//MARK: Utilities
