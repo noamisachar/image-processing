@@ -161,21 +161,84 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	}
 
 	public BufferedImage bilinear() {
-		logger.log("Applying bilinear interpolation...");
+		logger.log("Preparing for bilinear interpolation...");
+
 		BufferedImage ans = newEmptyOutputSizedImage();
-		
-		// pushForEachParameters();
-		// setForEachOutputParameters();
-		
-		// forEach((y, x) -> {
-		// 	int imgX = (int)Math.round((x*inWidth) / ((float)outWidth));
-		// 	int imgY = (int)Math.round((y*inHeight) / ((float)outHeight));
-		// 	imgX = Math.min(imgX,  inWidth-1);
-		// 	imgY = Math.min(imgY, inHeight-1);
-		// 	ans.setRGB(x, y, workingImage.getRGB(imgX, imgY));
-		// });
-		
-		// popForEachParameters();
+
+		// calculating new positions
+		double newX = inWidth / (outWidth + 1.0);
+		double newY = inHeight / (outHeight + 1.0);
+		double tempY = newY;
+		double tempX = newX;
+		int topLeftX, topRightX, bottomRightX, bottomLeftX;
+		int topLeftY, topRightY, bottomRightY, bottomLeftY;
+
+		for (int i = 0; i < outWidth; i++) {
+			for (int j = 0; j < outHeight; j++) {
+
+				bottomLeftX = bottomRightX = topLeftX = topRightX = (int)Math.floor(tempX);
+				bottomLeftY = bottomRightY = topLeftY = topRightY = (int)Math.floor(tempY);
+
+				// checking width boundries
+				if (topRightX == inWidth - 1)
+					topRightX = inWidth - 1;
+				if (bottomRightX == inWidth - 1)
+					bottomRightX = inWidth - 1;
+				if (topLeftX == 0)
+					topLeftX = 0;
+				if (bottomLeftX == 0)
+					bottomLeftX = 0;
+
+				// checking height boundries
+				if (bottomLeftY == 0)
+					bottomLeftY = 0;
+				if (bottomRightY == 0)
+					bottomRightY = 0;
+				if (topLeftY == inHeight - 1)
+					topLeftY = inHeight - 1;
+				if (topRightY == inHeight - 1)
+					topRightY = inHeight - 1;
+
+				// calculating u and v vectors
+				double u = Math.abs(bottomLeftX - tempX);
+				double v = Math.abs(bottomRightY - tempY);
+
+				// creating neighboring colors
+				Color topLeftColor = new Color(workingImage.getRGB(topLeftX, topLeftY));
+				Color topRightColor = new Color(workingImage.getRGB(topRightX, topRightY));
+				Color bottomLeftColor = new Color(workingImage.getRGB(bottomLeftX, bottomLeftY));
+				Color bottomRightColor = new Color(workingImage.getRGB(bottomRightX, bottomRightY));
+
+				int newRed = (int) (((int) ((bottomLeftColor.getRed() * u) + (bottomRightColor.getRed() * (1 - u))) * v) +
+						(int) ((topLeftColor.getRed() * u) + (topRightColor.getRed() * (1 - u))) * (1 - v));
+
+				int newGreen = (int) ((((bottomLeftColor.getGreen() * u) + (bottomRightColor.getGreen() * (1 - u))) * v) +
+						((int) ((topLeftColor.getGreen() * u) + (topRightColor.getGreen() * (1 - u))) * (1 - v)));
+
+				int newBlue = (int) (((int) ((bottomRightColor.getBlue() * u) + (bottomLeftColor.getBlue() * (1 - u))) * v) +
+						((int) ((topLeftColor.getBlue() * u) + (topRightColor.getBlue() * (1 - u))) * (1 - v)));
+
+				if (newBlue > 255)
+					newBlue = 255;
+				if (newBlue < 0)
+					newBlue = 0;
+				if (newRed > 255)
+					newRed = 255;
+				if (newRed < 0)
+					newRed = 0;
+				if (newGreen > 255)
+					newGreen = 255;
+				if (newGreen < 0)
+					newGreen = 0;
+
+				Color color = new Color(newRed, newGreen, newBlue);
+
+				ans.setRGB(i, j, color.getRGB());
+				tempY += newY;
+			}
+			tempX += newX;
+			tempY = 0;
+		}
 
 		logger.log("Bilinear interpolation done!");
 		return ans;
