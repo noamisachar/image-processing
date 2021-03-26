@@ -66,7 +66,7 @@ public class ImageProcessor extends FunctioalForEachLoops {
 	
 	//MARK: Nearest neighbor - example
 	public BufferedImage nearestNeighbor() {
-		logger.log("applies nearest neighbor interpolation.");
+		logger.log("Applying nearest neighbor interpolation...");
 		BufferedImage ans = newEmptyOutputSizedImage();
 		
 		pushForEachParameters();
@@ -115,8 +115,8 @@ public class ImageProcessor extends FunctioalForEachLoops {
 		logger.log("Preparing gradient magnitude...");
 		
 		BufferedImage greyscaled = greyscale();
-		int width = greyscaled.getWidth();
-		int height = greyscaled.getHeight();
+		int width = inWidth;
+		int height = inHeight;
 		if (height < 2 || width < 2)
 		{
 			try {
@@ -125,28 +125,28 @@ public class ImageProcessor extends FunctioalForEachLoops {
 				e.printStackTrace();
 			}
 		}
- 
+
 		BufferedImage ans = newEmptyInputSizedImage();
 
 		forEach((y, x) -> {
-			Color cCurr = new Color(workingImage.getRGB(x, y));
+			Color cCurr = new Color(greyscaled.getRGB(x, y));
 			Color cPrevH;
 			Color cPrevW;
 			if (y == height-1)
 			{
-				cPrevH = new Color(workingImage.getRGB(x, y-1));
+				cPrevH = new Color(greyscaled.getRGB(x, y-1));
 			}
 			else
 			{
-				cPrevH = new Color(workingImage.getRGB(x, y+1));
+				cPrevH = new Color(greyscaled.getRGB(x, y+1));
 			}
 			if (x == width-1)
 			{
-				cPrevW = new Color(workingImage.getRGB(x-1, y));
+				cPrevW = new Color(greyscaled.getRGB(x-1, y));
 			}
 			else
 			{
-				cPrevW = new Color(workingImage.getRGB(x+1, y));
+				cPrevW = new Color(greyscaled.getRGB(x+1, y));
 			}
 			double dx = Math.abs(cCurr.getRed() - cPrevW.getRed());
 			double dy = Math.abs(cCurr.getRed() - cPrevH.getRed());
