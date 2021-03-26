@@ -68,7 +68,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private long[][] costMatrix;
 	private int[][] imageMatrix;
 	private char[][] trackingtMatrix;
-	private int currWidthorHight;
+	private int currWidthOrHeight;
 	private int numOfSeams;
 	private boolean horizontalOperation; // (True for adding seams and False for removing seams)
 	private boolean verticalOperation; // (True for adding seams and False for removing seams)
@@ -107,7 +107,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 		*/
 	}
 
-	private BufferedImage showSeams(boolean showVerticalSeams, int seamColorRGB) {
+	public BufferedImage showSeams(boolean showVerticalSeams, int seamColorRGB) {
 		Seam[] seams = new Seam[numOfSeams];
 		Set<Integer> seamsInRow;
 
@@ -144,15 +144,15 @@ public class BasicSeamsCarver extends ImageProcessor {
 	}
 
 	private void calculateCostMatrix(){
-		costMatrix = new long[inHeight][currWidth];
-		trackingtMatrix = new char[inHeight][currWidth];
+		costMatrix = new long[inHeight][currWidthOrHeight];
+		trackingtMatrix = new char[inHeight][currWidthOrHeight];
 		long min, left, right, up;
 
 		logger.log("Calculating cost matrix");
 
 		// use dynamic programming to calculate minimal seam cost
 		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidth; j++) {
+			for (int j = 0; j < currWidthOrHeight; j++) {
 
 				// first row
 				if (i == 0) {
@@ -160,7 +160,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 					trackingtMatrix[i][j] = 's';
 				} else {
 					up = costMatrix[i - 1][j] + forwardLookingCost(i, j, 'u');
-					right = (j < currWidth - 1) ? costMatrix[i - 1][j + 1] + forwardLookingCost(i, j, 'r') : Long.MAX_VALUE;
+					right = (j < currWidthOrHeight - 1) ? costMatrix[i - 1][j + 1] + forwardLookingCost(i, j, 'r') : Long.MAX_VALUE;
 					left = (j > 0) ? costMatrix[i - 1][j - 1] + forwardLookingCost(i, j, 'l') : Long.MAX_VALUE;
 					min = Math.min(left, Math.min(up, right));
 					costMatrix[i][j] = energyMatrix[i][j] + min;
@@ -180,7 +180,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 	private long forwardLookingCost(int i, int j, char dir) {
 		long res;
 
-		if (j == currWidth - 1) {
+		if (j == currWidthOrHeight - 1) {
 			res = toGray(imageMatrix[i][j - 1]);
 		} else if (j == 0) {
 			res = toGray(imageMatrix[i][j + 1]);
@@ -211,25 +211,25 @@ public class BasicSeamsCarver extends ImageProcessor {
 	}
 
 	private void initialCalculations() {
-		energyMatrix = new long[inHeight][currWidth];
-		imageMatrix = new int[inHeight][currWidth];
+		energyMatrix = new long[inHeight][currWidthOrHeight];
+		imageMatrix = new int[inHeight][currWidthOrHeight];
 
 		calculateEnergy();
 		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidth; j++) {
+			for (int j = 0; j < currWidthOrHeight; j++) {
 				imageMatrix[i][j] = workingImage.getRGB(j, i);
 			}
 		}
 	}
 
 	private void calculateEnergy() {
-		energyMatrix = new long[inHeight][currWidth];
+		energyMatrix = new long[inHeight][currWidthOrHeight];
 		int nextCol, nextRow, currPix, nextColPix, nextRowPix;
 		double di, dj;
 
 		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidth; j++) {
-				if (j == currWidth - 1) {
+			for (int j = 0; j < currWidthOrHeight; j++) {
+				if (j == currWidthOrHeight - 1) {
 					nextCol = j - 1;
 				} else{
 					nextCol = j + 1;
@@ -257,7 +257,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 		Seam seam = new Seam(inHeight);
 		int col = 0;
 		long min = Long.MAX_VALUE;
-		for (int j = 0; j < currWidth; j++) {
+		for (int j = 0; j < currWidthOrHeight; j++) {
 			if (costMatrix[inHeight - 1][j] <= min) {
 				min = costMatrix[inHeight - 1][j];
 				col = j;
@@ -287,15 +287,15 @@ public class BasicSeamsCarver extends ImageProcessor {
 	}
 
 	private void removeSeam(Seam seam) {
-		currWidth--;
-		int[][] tmpImageMatrix = new int[inHeight][currWidth];
+		currWidthOrHeight--;
+		int[][] tmpImageMatrix = new int[inHeight][currWidthOrHeight];
 		int shift, shiftCol;
 
 		logger.log("Removing seam");
 		for (int i = 0; i < inHeight; i++) {
 			shift = 0;
 			shiftCol = seam.getPixCol(i);
-			for (int j = 0; j < currWidth; j++) {
+			for (int j = 0; j < currWidthOrHeight; j++) {
 				if (j == shiftCol) {
 					shift = 1;
 				}
@@ -317,7 +317,7 @@ public class BasicSeamsCarver extends ImageProcessor {
 
 		BufferedImage outImage = newEmptyOutputSizedImage();
 		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidth; j++) {
+			for (int j = 0; j < currWidthOrHeight; j++) {
 				outImage.setRGB(j, i, imageMatrix[i][j]);
 			}
 		}
