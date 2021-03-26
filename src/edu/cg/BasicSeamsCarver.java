@@ -31,76 +31,14 @@ public class BasicSeamsCarver extends ImageProcessor {
 		}
 	}
 	
-	private String widthOp;
-	private String heightOp;
-	private int numOfVerSeams;
-	private int numOfHorSeams;
-    private boolean[][] imageMask;
-    private int[][] pixelOriginX;
-    private int[][] pixelOriginY;
-    private int[][] vSeamDirection;
-    private int[][] hSeamDirection;
-	private int numVSeamsRemoved = 0;
-    private int numHSeamsRemoved = 0;
-    private int[][] greyScale;
+	// TODO :  Decide on the fields your BasicSeamsCarver should include. Refer to the recitation and homework 
+			// instructions PDF to make an educated decision.
 	
 	public BasicSeamsCarver(Logger logger, BufferedImage workingImage,
 			int outWidth, int outHeight, RGBWeights rgbWeights) {
 		super((s) -> logger.log("Seam carving: " + s), workingImage, rgbWeights, outWidth, outHeight);
-
-		numOfVerSeams = Math.abs(outWidth - inWidth);
-		numOfHorSeams = Math.abs(outHeight - inHeight);
-        
-		if (inWidth < 2 | inHeight < 2)
-            throw new RuntimeException("Can not apply seam carving: workingImage is too small");
-
-        if (numOfVerSeams > inWidth / 2 || numOfHorSeams > inHeight)
-            throw new RuntimeException("Can not apply seam carving: too many seams...");
-
-		if (outWidth > inWidth)
-            widthOp = "up";
-        else if (outWidth < inWidth)
-			widthOp = "down";
-        else
-            widthOp = "none";
-
-		if (outHeight > inHeight)
-            heightOp = "up";
-        else if (outHeight < inHeight)
-			heightOp = "down";
-        else
-            heightOp = "none";
-
-		BufferedImage carvingImage = greyscale();
-        pixelOriginX = new int[inHeight][inWidth];
-        pixelOriginY = new int[inHeight][inWidth];
-        pushForEachParameters();
-        setForEachInputParameters();
-        forEach((y, x) -> pixelOriginX[y][x] = x);
-        forEach((y, x) -> pixelOriginY[y][x] = y);
-        popForEachParameters();
-        vSeamDirection = new int[inHeight][inWidth];
-        hSeamDirection = new int[inHeight][inWidth];
-        greyScale = new int[inHeight][inWidth];
-        pushForEachParameters();
-        setForEachInputParameters();
-        forEach((y, x) -> greyScale[y][x] = rgbToSingle(carvingImage.getRGB(x,y)));
-        popForEachParameters();
+		// TODO : Include some additional initialization procedures.
 	}
-
-	private int rgbToSingle(int rgb) {
-        return rgb & 0xFF;
-    }
-
-
-    private int getGreyscaleDiff(int y1, int x1,
-                                 int y2, int x2) {
-        return Math.abs(greyScale[y1][x1] - greyScale[y2][x2]);
-    }
-
-    private void setForEachCarvingParameters() {
-        setForEachParameters(inWidth - numVSeamsRemoved, inHeight - numHSeamsRemoved);
-    }
 	
 	public BufferedImage carveImage(CarvingScheme carvingScheme) {
 		int numberOfVerticalSeamsToCarve = Math.abs(this.outWidth - this.inWidth);
