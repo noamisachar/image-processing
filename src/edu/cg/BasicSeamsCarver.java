@@ -1,381 +1,393 @@
 package edu.cg;
 
+import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
 
 
 public class BasicSeamsCarver extends ImageProcessor {
-	
-	// An enum describing the carving scheme used by the seams carver.
-	// VERTICAL_HORIZONTAL means vertical seams are removed first.
-	// HORIZONTAL_VERTICAL means horizontal seams are removed first.
-	// INTERMITTENT means seams are removed intermittently : vertical, horizontal, vertical, horizontal etc.
-	public static enum CarvingScheme {
-		VERTICAL_HORIZONTAL("Vertical seams first"),
-		HORIZONTAL_VERTICAL("Horizontal seams first"),
-		INTERMITTENT("Intermittent carving");
+
+
+    // An enum describing the carving scheme used by the seams carver.
+    // VERTICAL_HORIZONTAL means vertical seams are removed first.
+    // HORIZONTAL_VERTICAL means horizontal seams are removed first.
+    // INTERMITTENT means seams are removed intermittently : vertical, horizontal, vertical, horizontal etc.
+    public static enum CarvingScheme {
+        VERTICAL_HORIZONTAL("Vertical seams first"),
+        HORIZONTAL_VERTICAL("Horizontal seams first"),
+        INTERMITTENT("Intermittent carving");
+
+        public final String description;
+
+        private CarvingScheme(String description) {
+            this.description = description;
+        }
+    }
+
+    // A simple coordinate class which assists the implementation.
+    protected class Coordinate {
+        public int X;
+        public int Y;
+
+        public Coordinate(int X, int Y) {
+            this.X = X;
+            this.Y = Y;
+        }
+    }
+
+	BufferedImage originalImage;
+	private BufferedImage greyscaled;
+	private int numOfVerticalSeams;
+    private int numOfHorizontalSeams;
+
+    private double[][] costMatrix;
+    private int[][] carved;
+    private int[][] backTrack;
+    private int currWidth;
+    private int currHeight;
+    private Coordinate[][] originalCoordinates;
+    private ArrayList<Coordinate[]> horizontalCoordinates;
+    private ArrayList<Coordinate[]> verticalCoordinates;
+
+    public BasicSeamsCarver(Logger logger, BufferedImage workingImage,
+                            int outWidth, int outHeight, RGBWeights rgbWeights) {
+        super((s) -> logger.log("Seam carving: " + s), workingImage, rgbWeights, outWidth, outHeight);
 		
-		public final String description;
-		
-		private CarvingScheme(String description) {
-			this.description = description;
-		}
-	}
-	
-	// A simple coordinate class which assists the implementation.
-	protected class Coordinate{
-		public int X;
-		public int Y;
-		public Coordinate(int X, int Y) {
-			this.X = X;
-			this.Y = Y;
-		}
-	}
-	
-	protected class Seam{
-		private int[] pixels;
-		private int[] seamShifts;
-		private int tailPosition;
-	
-		public Seam(int length){
-			pixels = new int[length];
-			seamShifts = new int[length];
-			tailPosition = length - 1;
-		}
-	
-		public void addPixelToTail(int j){
-			pixels[tailPosition] = j;
-			tailPosition --;
-		}
-	
-		public void shiftSeam(int i, int shift){
-			seamShifts[i] = shift;
-		}
-	
-		public int getPixCol(int i){
-			return pixels[i];
-		}
-	
-		public int getColShift(int i){
-			return seamShifts[i];
-		}
-	}
-	
-	private int numberOfHorizontalSeamsToCarve;
-	private int numberOfVerticalSeamsToCarve;
-	private long[][] energyMatrix;
-	private long[][] costMatrix;
-	private int[][] imageMatrix;
-	private char[][] trackingtMatrix;
-	private int currWidthOrHeight;
-	private int numOfSeams;
-	private boolean horizontalOperation; // (True for adding seams and False for removing seams)
-	private boolean verticalOperation; // (True for adding seams and False for removing seams)
+		this.greyscaled = this.greyscale();
+        this.originalImage = this.greyscale();
 
-	public BasicSeamsCarver(Logger logger, BufferedImage workingImage,
-			int outWidth, int outHeight, RGBWeights rgbWeights) {
-		super((s) -> logger.log("Seam carving: " + s), workingImage, rgbWeights, outWidth, outHeight);
-		
-		this.numberOfHorizontalSeamsToCarve = Math.abs(workingImage.getHeight() - outHeight);
-		this.numberOfVerticalSeamsToCarve = Math.abs(workingImage.getWidth() - outWidth);
-		this.costMatrix = new long[outWidth][outHeight];
-		if (outHeight > workingImage.getHeight())
-		{
-			horizontalOperation = true;
-		} else {
-			horizontalOperation = false;
-		}
-		if (outWidth > workingImage.getWidth())
-		{
-			verticalOperation = true;
-		} else {
-			verticalOperation = false;
-		}
-	}
+        this.currWidth = getForEachWidth();
+        this.currHeight = getForEachHeight();
+        this.costMatrix = new double[currHeight][currWidth];
+        this.backTrack = new int[currHeight][currWidth];
 
-	public BufferedImage carveImage(CarvingScheme carvingScheme) {
+        this.numOfHorizontalSeams = workingImage.getWidth() - outWidth;
+        this.numOfVerticalSeams = workingImage.getHeight() - outHeight;
 
-		BufferedImage greyScaled = greyscale();
-		calculateCostMatrix();
-		/*
-		1. create greyScaled image
-		2. calculate costMatrix
-		3. find min seam
-		4. remove or add and update the pic and the costMatrix
-		5. repeat 3,4
-		*/
-	}
+        this.horizontalCoordinates = new ArrayList<Coordinate[]>();
+        this.verticalCoordinates = new ArrayList<Coordinate[]>();
+        this.originalCoordinates = new Coordinate[currHeight][currWidth];
 
-	public BufferedImage showSeams(boolean showVerticalSeams, int seamColorRGB) {
-		Seam[] seams = new Seam[numOfSeams];
-		Set<Integer> seamsInRow;
+        this.initMatrices();
+    }
 
-		// remove and store seams
-		for (int i = 0; i < numOfSeams; i++) {
-			calculateEnergy();
-			calculateCostMatrix();
-			Seam seam = findMinSeam();
+	private void initMatrices(){
+		this.carved = new int[this.currHeight][this.currWidth];
+        for(int x = 0; x < currWidth; x++){
+            for(int y = 0; y < currHeight; y++){
+                this.originalCoordinates[y][x] = new Coordinate(x, y);
+				this.carved[y][x] = (new Color(this.greyscaled.getRGB(x,y))).getBlue();
+            }
+        }
+    }
 
-			logger.log("Storing seam");
-			seams[i] = seam;
-			removeSeam(seam);
-		}
+    private BufferedImage reconstructImage(){
+        BufferedImage ans = newEmptyOutputSizedImage();
 
-		convertSeamPositions(seams);
-		BufferedImage outImage = newEmptyInputSizedImage();
-		for (int i = 0; i < inHeight; i++) {
-			seamsInRow = new HashSet<Integer>();
+        for(int x = 0; x < currWidth; x++){
+            for(int y = 0; y < currHeight; y++){
+                ans.setRGB(x,y,this.workingImage.getRGB(this.originalCoordinates[y][x].X,this.originalCoordinates[y][x].Y));
+            }
+        }
+        return ans;
+    }
 
-			// add seams positions per row
-			for (int k = 0; k < numOfSeams; k++) {
-				seamsInRow.add(seams[k].getPixCol(i) + seams[k].getColShift(i));
-			}
+    private void removeSeams(int numOfVerticalSeams, int numOfHorizontalSeams, CarvingScheme carvingScheme){
+        if (carvingScheme == CarvingScheme.VERTICAL_HORIZONTAL) {
+            removeVertical(numOfVerticalSeams);
+            removeHorizontal(numOfHorizontalSeams);
+        }
+        else if (carvingScheme == CarvingScheme.HORIZONTAL_VERTICAL) {
+            removeHorizontal(numOfHorizontalSeams);
+            removeVertical(numOfVerticalSeams);
 
-			for (int j = 0; j < inWidth; j++) {
-				if (seamsInRow.contains(j)) {
-					outImage.setRGB(j, i, seamColorRGB);
-				} else {
-					outImage.setRGB(j, i, workingImage.getRGB((j), i));
-				}
-			}
-		}
-		return outImage;
-	}
+        }else{
+            this.removeIntermittently(numOfVerticalSeams, numOfHorizontalSeams);
+        }
+    }
 
-	private void calculateCostMatrix(){
-		costMatrix = new long[inHeight][currWidthOrHeight];
-		trackingtMatrix = new char[inHeight][currWidthOrHeight];
-		long min, left, right, up;
+    private void removeVertical(int numOfVerticalSeams){
+        for (int i = 0; i < numOfVerticalSeams; i++) {
+            removeMinVerticalSeam();
+        }
+    }
 
-		logger.log("Calculating cost matrix");
+    private void removeHorizontal(int numOfHorizontalSeams){
+        for (int i = 0; i < numOfHorizontalSeams; i++) {
+            removeMinHorizontalSeam();
+        }
+    }
+    private void removeIntermittently(int numOfVerticalSeams, int numOfHorizontalSeams) {
 
-		// use dynamic programming to calculate minimal seam cost
-		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidthOrHeight; j++) {
+        while(numOfVerticalSeams > 0 || numOfHorizontalSeams > 0){
+            if (numOfVerticalSeams > 0 ) {
+                removeMinVerticalSeam();
+                numOfVerticalSeams--;
+            }
 
-				// first row
-				if (i == 0) {
-					costMatrix[i][j] = energyMatrix[i][j];
-					trackingtMatrix[i][j] = 's';
-				} else {
-					up = costMatrix[i - 1][j] + forwardLookingCost(i, j, 'u');
-					right = (j < currWidthOrHeight - 1) ? costMatrix[i - 1][j + 1] + forwardLookingCost(i, j, 'r') : Long.MAX_VALUE;
-					left = (j > 0) ? costMatrix[i - 1][j - 1] + forwardLookingCost(i, j, 'l') : Long.MAX_VALUE;
-					min = Math.min(left, Math.min(up, right));
-					costMatrix[i][j] = energyMatrix[i][j] + min;
+            if (numOfHorizontalSeams > 0){
+                removeMinHorizontalSeam();
+                numOfHorizontalSeams--;
+            }
+        }
+    }
 
-					if (min == right) {
-						trackingtMatrix[i][j] = 'r';
-					} else if (min == up) {
-						trackingtMatrix[i][j] = 'u';
-					} else {
-						trackingtMatrix[i][j] = 'l';
-					}
-				}
-			}
-		}
-	}
+    private void removeMinVerticalSeam() {
 
-	private long forwardLookingCost(int i, int j, char dir) {
-		long res;
-
-		if (j == currWidthOrHeight - 1) {
-			res = toGray(imageMatrix[i][j - 1]);
-		} else if (j == 0) {
-			res = toGray(imageMatrix[i][j + 1]);
-		} else {
-			res = Math.abs(toGray(imageMatrix[i][j + 1]) - toGray(imageMatrix[i][j - 1]));
-		}
-
-		switch (dir) {
-			case 'l':
-				res += Math.abs(toGray(imageMatrix[i - 1][j]) - toGray(imageMatrix[i][j - 1]));
-				break;
-			case 'r':
-				res += Math.abs(toGray(imageMatrix[i - 1][j]) - toGray(imageMatrix[i][j + 1]));
-				break;
-			default:
-				break;
-		}
-		return res;
-	}
-
-	private int toGray(int rgb){
-		int r = (rgb >> 16) & 0xFF;
-		int g = (rgb >> 8) & 0xFF;
-		int b = (rgb & 0xFF);
-
-		int grayLevel = (r + g + b) / 3;
-		return grayLevel;
-	}
-
-	private void initialCalculations() {
-		energyMatrix = new long[inHeight][currWidthOrHeight];
-		imageMatrix = new int[inHeight][currWidthOrHeight];
-
-		calculateEnergy();
-		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidthOrHeight; j++) {
-				imageMatrix[i][j] = workingImage.getRGB(j, i);
-			}
-		}
-	}
-
-	private void calculateEnergy() {
-		energyMatrix = new long[inHeight][currWidthOrHeight];
-		int nextCol, nextRow, currPix, nextColPix, nextRowPix;
-		double di, dj;
-
-		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidthOrHeight; j++) {
-				if (j == currWidthOrHeight - 1) {
-					nextCol = j - 1;
-				} else{
-					nextCol = j + 1;
-				}
-
-				if (i == inHeight - 1){
-					nextRow = i - 1;
-				} else {
-					nextRow = i + 1;
-				}
-
-				currPix = toGray(imageMatrix[i][j]);
-				nextColPix = toGray(imageMatrix[i][nextCol]);
-				nextRowPix = toGray(imageMatrix[nextRow][j]);
-
-				//calculate magnitude
-				dj = Math.pow(currPix - nextColPix, 2);
-				di = Math.pow(currPix - nextRowPix, 2);
-				energyMatrix[i][j] = (int) Math.sqrt((di + dj) / 2);
-			}
-		}
-	}
-
-	private Seam findMinSeam() {
-		Seam seam = new Seam(inHeight);
-		int col = 0;
-		long min = Long.MAX_VALUE;
-		for (int j = 0; j < currWidthOrHeight; j++) {
-			if (costMatrix[inHeight - 1][j] <= min) {
-				min = costMatrix[inHeight - 1][j];
-				col = j;
+    	this.computeCosts("vertical");
+        double min = Double.MAX_VALUE;
+    	int idx = -1;
+    	for(int x = 0; x < this.currWidth; x++){
+    		if(this.costMatrix[this.currHeight-1][x] < min){
+    			min = costMatrix[currHeight-1][x];
+    			idx = x;
 			}
 		}
 
-		logger.log("Found min: " + min + " at index: " + col);
-		logger.log("Backtracking");
 
-		// backtrack
-		for (int i = inHeight - 1; i >= 0; i--) {
-			seam.addPixelToTail(col);
-			switch (trackingtMatrix[i][col]) {
-				case 'l':
-					col = col - 1;
-					break;
-				case 'r':
-					col = col + 1;
-					break;
-				case 's':
-					break;
-				default:
-					break;
-			}
-		}
-		return seam;
-	}
-
-	private void removeSeam(Seam seam) {
-		currWidthOrHeight--;
-		int[][] tmpImageMatrix = new int[inHeight][currWidthOrHeight];
-		int shift, shiftCol;
-
-		logger.log("Removing seam");
-		for (int i = 0; i < inHeight; i++) {
-			shift = 0;
-			shiftCol = seam.getPixCol(i);
-			for (int j = 0; j < currWidthOrHeight; j++) {
-				if (j == shiftCol) {
-					shift = 1;
-				}
-				tmpImageMatrix[i][j] = imageMatrix[i][j + shift];
-			}
-		}
-		imageMatrix = tmpImageMatrix;
-	}
-
-	private BufferedImage reduceImageWidth() {
-
-		// remove seams
-		for (int i = 0; i < numOfSeams; i++) {
-			calculateEnergy();
-			calculateCostMatrix();
-			Seam seam = findMinSeam();
-			removeSeam(seam);
+    	Coordinate[] seamToRemove = new Coordinate[this.currHeight];
+    	for(int y = this.currHeight - 1; y >= 0; y--){
+    		seamToRemove[y] = this.originalCoordinates[y][idx];
+    		this.verticalShift(y, idx);
+    		idx = idx + this.backTrack[y][idx];
 		}
 
-		BufferedImage outImage = newEmptyOutputSizedImage();
-		for (int i = 0; i < inHeight; i++) {
-			for (int j = 0; j < currWidthOrHeight; j++) {
-				outImage.setRGB(j, i, imageMatrix[i][j]);
-			}
-		}
-		return outImage;
-	}
+    	this.verticalCoordinates.add(seamToRemove);
+    	this.currWidth--;
+    }
 
-	private BufferedImage increaseImageWidth() {
-		Seam[] seams = new Seam[numOfSeams];
-		Set<Integer>  seamsInRow;
-		int shift;
+    private void removeMinHorizontalSeam() {
 
-		// remove and store seams
-		for (int i = 0; i < numOfSeams; i++) {
-			calculateEnergy();
-			calculateCostMatrix();
-			Seam seam = findMinSeam();
+        this.computeCosts("horizontal");
+        double min = Double.MAX_VALUE;
+        int idx = -1;
 
-			logger.log("Storing seam");
-			seams[i] = seam;
-			removeSeam(seam);
-		}
+        for(int y = 0; y < this.currHeight; y++){
+            if(this.costMatrix[y][this.currWidth-1] < min){
+                min = costMatrix[y][this.currWidth-1];
+                idx = y;
+            }
+        }
 
-		convertSeamPositions(seams);
-		BufferedImage outImage = newEmptyOutputSizedImage();
-		for (int i = 0; i < inHeight; i++) {
-			shift = 0;
-			seamsInRow = new HashSet<Integer>();
+        Coordinate[] seamToRemove = new Coordinate[this.currWidth];
+        for(int x = this.currWidth - 1; x >= 0; x--){
+            seamToRemove[x] = this.originalCoordinates[idx][x];
+            this.horizontalShift(idx, x);
+            idx = idx + this.backTrack[idx][x];
+        }
+        this.horizontalCoordinates.add(seamToRemove);
+        this.currHeight--;
+    }
 
-			// add seams positions per row
-			for (int k = 0; k < numOfSeams; k++) {
-				seamsInRow.add(seams[k].getPixCol(i) + seams[k].getColShift(i));
-			}
-
-			for (int j = 0; j < outWidth; j++) {
-				outImage.setRGB(j, i, workingImage.getRGB((j - shift), i));
-				if (seamsInRow.contains(j)) {
-					shift++;
-				}
-			}
-		}
-		return outImage;
-	}
-	
-	private void convertSeamPositions(Seam[] seams) {
-		int shift;
-
-		for (int i = 0; i < inHeight; i++) {
-			for (int k = 0; k < numOfSeams; k++) {
-				shift = 0;
-				for (int l = k - 1; l >= 0; l--) {
-
-					//account for previous shifts
-					if (seams[k].getPixCol(i) + shift >= seams[l].getPixCol(i)) {
-						shift++;
-					}
-				}
-				seams[k].shiftSeam(i, shift);
-			}
+	private void verticalShift(int y, int idx) {
+		this.originalCoordinates[y][idx] = null;
+    	for(int x = idx; x < currWidth - 1; x++){
+    		this.originalCoordinates[y][x] = this.originalCoordinates[y][x+1];
+            this.carved[y][x] = carved[y][x+1];
 		}
 	}
+
+	private  void horizontalShift(int idx, int x){
+        this.originalCoordinates[idx][x] = null;
+        for(int y = idx; y < currHeight - 1; y++){
+            this.originalCoordinates[y][x] = this.originalCoordinates[y+1][x];
+            this.carved[y][x] = carved[y+1][x];
+        }
+    }
+
+
+	private void computeCosts(String direction) {
+        if (direction == "vertical") {
+            for (int y = 0; y < this.currHeight; y++) {
+                for (int x = 0; x < this.currWidth; x++) {
+                    this.minVertical(y, x);
+                }
+            }
+        }else{
+            for (int x = 0; x < this.currWidth; x++){
+                for (int y = 0; y < this.currHeight; y++)  {
+                    this.minHorizontal(y, x);
+                }
+            }
+        }
+    }
+
+    private void minVertical(int y, int x) {
+        int origin = 0;
+        int cLeft = 255;
+        int cUp = 255;
+        int cRight = 255;
+
+        if (y > 0) {
+            double tUp = this.costMatrix[y - 1][x];
+            double tRight = Double.MAX_VALUE / 2;
+            double tLeft = Double.MAX_VALUE / 2;
+
+            if (x > 0 && x < this.currWidth - 1) {
+                cRight = Math.abs(this.carved[y][x - 1] - this.carved[y][x + 1]);
+                cLeft = cRight;
+                cUp = cRight;
+            }
+
+            if (x > 0) {
+                cLeft += Math.abs(this.carved[y][x - 1] - this.carved[y - 1][x]);
+                tLeft = this.costMatrix[y - 1][x - 1];
+            }
+
+            if (x  < this.currWidth - 1) {
+                cRight += Math.abs(this.carved[y - 1][x] - this.carved[y][x + 1]);
+                tRight = this.costMatrix[y - 1][x + 1];
+            }
+
+            double costRight = tRight + cRight;
+            double costLeft = tLeft + cLeft;
+            double costUp = tUp + cUp;
+
+            double min = 0;
+
+            if (costRight < costUp && costRight < costLeft  && x < this.currWidth - 1) {
+                origin = 1;
+                min = costRight;
+            }
+            else if (costLeft < costUp && costLeft < costRight && x > 0) {
+                origin = - 1;
+                min = costLeft;
+            }else{
+                min = costUp;
+                origin = 0;
+            }
+
+            this.costMatrix[y][x] = this.pixelEnergy(y, x) + min;
+
+        }else{
+            this.costMatrix[y][x] = this.pixelEnergy(y, x);
+        }
+
+        this.backTrack[y][x] = origin;
+    }
+
+    private void minHorizontal(int y, int x) {
+        int origin = 0;
+        int cBehind = 255;
+        int cOver = 255;
+        int cUnder = 255;
+
+        if (x > 0) {
+            double tBehind = this.costMatrix[y][x - 1];
+            double tOver = Double.MAX_VALUE / 2;
+            double tUnder = Double.MAX_VALUE / 2;
+
+            if (y > 0 && y < this.currHeight - 1) {
+                cBehind = Math.abs(this.carved[y-1][x] - this.carved[y + 1][x]);
+                cOver = cBehind;
+                cUnder = cOver;
+            }
+
+            if (y > 0) {
+                cOver += Math.abs(this.carved[y-1][x] - this.carved[y][x-1]);
+                tOver = this.costMatrix[y - 1][x - 1];
+            }
+
+            if (y  < this.currHeight - 1) {
+                cUnder += Math.abs(this.carved[y][x-1] - this.carved[y+1][x]);
+                tUnder = this.costMatrix[y + 1][x - 1];
+            }
+
+            double costBehind = tBehind + cBehind;
+            double costOver = tOver + cOver;
+            double costUnder = tUnder + cUnder;
+
+            double min = 0;
+
+            if (costUnder < costBehind && costUnder < costOver  && y < this.currWidth - 1) {
+                origin = 1;
+                min = costUnder;
+            }
+            else if (costOver < costBehind && costOver < costUnder && y > 0) {
+                origin = - 1;
+                min = costOver;
+            }else{
+                min = costBehind;
+                origin = 0;
+            }
+
+            this.costMatrix[y][x] = this.pixelEnergy(y, x) + min;
+
+        }else{
+            this.costMatrix[y][x] = this.pixelEnergy(y, x);
+        }
+
+        this.backTrack[y][x] = origin;
+    }
+
+
+    private double pixelEnergy(int y, int x) {
+        int currentColor = carved[y][x];
+        int verticalColor = -1;
+        int horizontalColor = -1;
+
+        if (y == this.currHeight - 1) {
+            verticalColor = this.carved[y-1][x];
+        } else {
+            verticalColor = this.carved[y+1][x];
+        }
+
+        if (x == this.currWidth - 1) {
+            horizontalColor = this.carved[y][x-1];
+        } else {
+            horizontalColor = this.carved[y][x+1];
+        }
+
+        double horizontal = Math.abs(currentColor - horizontalColor);
+        double vertical = Math.abs(currentColor - verticalColor);
+
+        double energy = Math.sqrt(Math.pow(vertical, 2) + Math.pow(horizontal, 2));
+
+        return energy;
+    }
+
+    public BufferedImage carveImage(CarvingScheme carvingScheme) {
+        int numVertical = Math.abs(this.outWidth - this.inWidth);
+        int numHorizontal = Math.abs(this.outHeight - this.inHeight);
+        this.removeSeams(numVertical,  numHorizontal, carvingScheme);
+        return this.reconstructImage();
+    }
+
+    public BufferedImage showSeams(boolean showVerticalSeams, int seamColorRGB) {
+        int numVertical = Math.abs(this.outWidth - this.inWidth);
+        int numHorizontal = Math.abs(this.outHeight - this.inHeight);
+        BufferedImage shownSeamImage;
+        if (showVerticalSeams){
+            shownSeamImage = this.showVerticalSeams(numVertical, seamColorRGB);
+        }else{
+            shownSeamImage = this.showHorizontalSeams(numHorizontal, seamColorRGB);
+        }
+        return shownSeamImage;
+
+    }
+
+    private BufferedImage showHorizontalSeams(int numOfHorizontalSeams, int seamColorRGB) {
+        removeHorizontal(numOfHorizontalSeams);
+        BufferedImage outputImage = this.duplicateWorkingImage();
+
+        for (Coordinate[] seam : this.horizontalCoordinates){
+            for(int i = 0; i < seam.length; i++){
+                outputImage.setRGB(seam[i].X, seam[i].Y,seamColorRGB);
+            }
+        }
+
+        return outputImage;
+    }
+
+    private BufferedImage showVerticalSeams(int numOfVerticalSeams, int seamColorRGB) {
+        removeVertical(numOfVerticalSeams);
+        BufferedImage outputImage = this.duplicateWorkingImage();
+
+        for (Coordinate[] seam : this.verticalCoordinates){
+            for(int i = 0; i < seam.length; i++){
+                outputImage.setRGB(seam[i].X, seam[i].Y,seamColorRGB);
+            }
+        }
+        return outputImage;
+    }
 }
